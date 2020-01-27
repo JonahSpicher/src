@@ -29,10 +29,10 @@ void __attribute__((interrupt, auto_psv)) _T1Interrupt(void) {
     IFS0bits.T1IF = 0;      // lower Timer1 interrupt flag
 
     //LED2 = !LED2;           // toggle LED2
-    if (D6 == 0)
-    {
-        LED3 = OFF;
-    }
+    // if (D6 == 0)
+    // {
+    //     LED3 = OFF;
+    // }
 }
 
 int16_t main(void) {
@@ -52,7 +52,7 @@ int16_t main(void) {
 
         if (D6 == 1)
         {
-            LED3 = ON;
+            LED3 = !LED3;
         }
         //LED1 = (SW2 == 0) ? ON : OFF;   // turn LED1 on if SW2 is pressed
         //LED3 = (SW3 == 0) ? ON : OFF;   // turn LED3 on if SW3 is pressed
