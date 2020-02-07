@@ -19,5 +19,5 @@ env.Program('motortest', ['motortest.c',
                             'descriptors.c',
                             '../lib/usb.c',
                             '../lib/elecanisms.c'])
-env.Hex('encodertest')
-env.List('encodertest')
+env.Hex('motortest')
+env.List('motortest')
