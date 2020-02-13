@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 #First solve angles from calibration data
 angles = [1846, 6037, 10140, 14335]
-degrees = [0, 90, 180, 270]
+degrees = [0, np.pi*0.5, np.pi, 3*np.pi/2]
 a2d = np.polyfit(angles, degrees, 1)
 plt.scatter(angles, degrees)
 plt.plot(angles, a2d[0]*np.array(angles) + a2d[1])
@@ -13,7 +13,7 @@ plt.ylabel("Angle in Degrees")
 plt.figure()
 
 #Solve and plot 100% duty cycle
-data = a2d[0]*np.load("spindown100.npy") + a2d[1] #Converts angle data to degrees
+data = np.unwrap(a2d[0]*np.load("spindown100.npy") + a2d[1]) #Converts angle data to degrees
 ts = np.array(range(len(data)))*8/len(data) #Converts indices to seconds
 
 plt.plot(ts[240:548], data[240:548]) #Only plots specified range where spinning happened
@@ -23,7 +23,7 @@ plt.ylabel("Angle (Deg)")
 plt.figure()
 
 #Solve and plot 50% duty cycle
-data = a2d[0]*np.load("spindown50.npy") + a2d[1] #Converts angle data to degrees
+data = np.unwrap(a2d[0]*np.load("spindown50.npy") + a2d[1]) #Converts angle data to degrees
 ts = np.array(range(len(data)))*8/len(data) #Converts indices to seconds
 
 plt.plot(ts[290:600], data[290:600]) #Only plots specified range where spinning happened

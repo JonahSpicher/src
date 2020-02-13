@@ -70,13 +70,13 @@ void __attribute__((interrupt, auto_psv)) _T1Interrupt(void) {
     //Disables motor if its before or after spinup
     if (TCURR < TSTART){
         //M_EN = 1; // Counter intuitively, this means disable
-        M_EN = 0;
+        M_EN = 1;
 
     }
     //Otherwise enable motor
     else if (TCURR < TSTART + TSPINUP) {
         OC1R = OC1RS>>2;
-        M_EN = 0;
+        M_EN = 1;
     }
     else {
         M_EN = 1;
@@ -84,6 +84,15 @@ void __attribute__((interrupt, auto_psv)) _T1Interrupt(void) {
 
 }
 
+int createMask(unsigned a, unsigned b)
+{
+   int r = 0;
+   int i;
+   for (i=a; i<=b; i++)
+       r |= 1 << i;
+
+   return r;
+}
 
 uint16_t even_parity(uint16_t v) {
     v ^= v >> 8;
@@ -254,10 +263,27 @@ int16_t main(void) {
 #ifndef USB_INTERRUPT
         usb_service();
 #endif
+        unsigned mask = createMask(0, 13);
+        int val = mask & enc_readReg(USB_setup.wValue).w;
+
+        if (val > 8000) {
+            LED3 = OFF;
+        }
+        else {
+            LED3 = ON;
+        }
     }
     while (1) {
 #ifndef USB_INTERRUPT
         usb_service();
 #endif
+        int mask = createMask(0, 13);
+        int val = mask & enc_readReg(USB_setup.wValue).w;
+        if (val > 8000) {
+            LED3 = ON;
+        }
+        else {
+            LED3 = OFF;
+        }
     }
 }

@@ -55,19 +55,19 @@ if __name__=='__main__':
     i = 0
 
     # For calibrating
-    # while enc.read_sw1() == 1:
-    #     print(enc.get_angle())
-    #     time.sleep(0.5)
+    while enc.read_sw1() == 1:
+        print(enc.get_angle())
+        time.sleep(0.5)
 
     # Spin-down test
-    while (now - start) < 8: #Only runs for 8 seconds to keep data small 
-        data[i] = enc.get_angle()
-        i += 1
-        time.sleep(0.01)
-        now = time.time()
-
-    print("Started at:", start)
-    print("Finished:", now)
-    data = data[0:i+1]
-
-    np.save("spindown.npy", data)
+    # while (now - start) < 8: #Only runs for 8 seconds to keep data small
+    #     data[i] = enc.get_angle()
+    #     i += 1
+    #     time.sleep(0.01)
+    #     now = time.time()
+    #
+    # print("Started at:", start)
+    # print("Finished:", now)
+    # data = data[0:i+1]
+    #
+    # np.save("spindown.npy", data)
