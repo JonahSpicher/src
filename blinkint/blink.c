@@ -28,7 +28,7 @@
 void __attribute__((interrupt, auto_psv)) _T1Interrupt(void) {
     IFS0bits.T1IF = 0;      // lower Timer1 interrupt flag
 
-    //LED2 = !LED2;           // toggle LED2
+    LED2 = !LED2;           // toggle LED2
     // if (D6 == 0)
     // {
     //     LED3 = OFF;
@@ -38,7 +38,7 @@ void __attribute__((interrupt, auto_psv)) _T1Interrupt(void) {
 int16_t main(void) {
     init_elecanisms();
 
-    T1CON = 0x0030;         // set Timer1 period to 0.5s
+    T1CON = 0x0020;         // set Timer1 period to 0.5s
     PR1 = 0x7A11;
 
     TMR1 = 0;               // set Timer1 count to 0

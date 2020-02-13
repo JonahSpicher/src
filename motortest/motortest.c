@@ -58,7 +58,7 @@
 #define READ_SW3            5
 #define ENC_READ_REG        6
 
-int TSTART = 20; //Allow for time to connect to the board with python
+int TSTART = 4; //Allow for time to connect to the board with python
 int TSPINUP = 4; //Allow motor to get up to speed
 int TCURR = 0;   //Keep track of how many times the timer has been triggered
 
@@ -68,12 +68,18 @@ void __attribute__((interrupt, auto_psv)) _T1Interrupt(void) {
     TCURR += 1;
     LED1 = !LED1; //Toggle LED to show things are running
     //Disables motor if its before or after spinup
-    if ((TCURR < TSTART) || (TCURR > TSTART + TSPINUP)){
-        M_EN = 1; // Counter intuitively, this means disable
+    if (TCURR < TSTART){
+        //M_EN = 1; // Counter intuitively, this means disable
+        M_EN = 0;
+
     }
     //Otherwise enable motor
-    else {
+    else if (TCURR < TSTART + TSPINUP) {
+        OC1R = OC1RS>>2;
         M_EN = 0;
+    }
+    else {
+        M_EN = 1;
     }
 
 }
@@ -219,7 +225,7 @@ int16_t main(void) {
 
     OC1RS = (uint16_t)(FCY / 1e3 - 1.);     // configure period register to
                                             //   get a frequency of 1kHz
-    OC1R = OC1RS;  // configure duty cycle to 100%
+    OC1R = OC1RS>>2;  // configure duty cycle to 100%
     OC1TMR = 0;         // set OC1 timer count to 0
 
     // Configure encoder pins and connect them to SPI2
