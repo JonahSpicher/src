@@ -192,10 +192,6 @@ void vendor_requests(void) {
 
 int16_t main(void) {
     uint8_t *RPOR, *RPINR;
-    D12_DIR = OUT;
-    D13_DIR = OUT;
-    D13 = 0;
-    D12 = 1;
 
     init_elecanisms();
 
