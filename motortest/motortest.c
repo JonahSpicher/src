@@ -26,6 +26,7 @@
 
 #include "elecanisms.h"
 #include "usb.h"
+#include "math.h"
 #include <stdio.h>
 
 #define MISO            D1
@@ -61,6 +62,8 @@
 int TSTART = 4; //Allow for time to connect to the board with python
 int TSPINUP = 4; //Allow motor to get up to speed
 int TCURR = 0;   //Keep track of how many times the timer has been triggered
+int K = 1;  //spring constant (maximum duty cycle of resistance)
+WORD encoder_val;
 
 
 void __attribute__((interrupt, auto_psv)) _T1Interrupt(void) {
@@ -68,20 +71,6 @@ void __attribute__((interrupt, auto_psv)) _T1Interrupt(void) {
     TCURR += 1;
     LED1 = !LED1; //Toggle LED to show things are running
     //Disables motor if its before or after spinup
-    if (TCURR < TSTART){
-        //M_EN = 1; // Counter intuitively, this means disable
-        M_EN = 1;
-
-    }
-    //Otherwise enable motor
-    else if (TCURR < TSTART + TSPINUP) {
-        OC1R = OC1RS>>2;
-        M_EN = 1;
-    }
-    else {
-        M_EN = 1;
-    }
-
 }
 
 int createMask(unsigned a, unsigned b)
@@ -179,7 +168,9 @@ void vendor_requests(void) {
             BD[EP0IN].status = UOWN | DTS | DTSEN;
             break;
         case ENC_READ_REG:
-            temp = enc_readReg(USB_setup.wValue);
+            //temp = enc_readReg(USB_setup.wValue);
+            //encoder_val = enc_readReg(USB_setup.wValue);
+            temp = encoder_val;
             BD[EP0IN].address[0] = temp.b[0];
             BD[EP0IN].address[1] = temp.b[1];
             BD[EP0IN].bytecount = 2;
@@ -207,7 +198,7 @@ int16_t main(void) {
     D6_DIR = OUT;
 
     DIR1 = 1;
-    M_EN = 1; //Initially disable motor
+    M_EN = 0; //Initially enable
 
     // Configure pin D5 to produce a 1-kHz PWM signal with a 25% duty cycle
     // using the OC1 module.
@@ -255,31 +246,50 @@ int16_t main(void) {
     USB_setup_vendor_callback = vendor_requests;
     init_usb();
 
-    while (USB_USWSTAT != CONFIG_STATE) {
-#ifndef USB_INTERRUPT
-        usb_service();
-#endif
-        unsigned mask = createMask(0, 13);
-        int val = mask & enc_readReg(USB_setup.wValue).w;
+    int mask = createMask(0, 13);
+    int center = mask & enc_readReg(USB_setup.wValue).w;
 
-        if (val > 8000) {
-            LED3 = OFF;
+    while (USB_USWSTAT != CONFIG_STATE) {
+      #ifndef USB_INTERRUPT
+        usb_service();
+        #endif
+        int mask = createMask(0, 13);
+        encoder_val = enc_readReg(USB_setup.wValue);
+        int val = mask & encoder_val.w;
+        int difference = val-center;
+        if (difference < 0 ){
+          difference --;
+          difference += pow(2,14);
         }
-        else {
-            LED3 = ON;
+        if (difference > pow(2,13)){
+          DIR1 = 1;
         }
+        else{
+          DIR1 = 0;
+        }
+        int spring_force = (difference / pow(2,13)) * K;
+        OC1R = OC1RS * spring_force;  // configure duty cycle to 100%
     }
     while (1) {
-#ifndef USB_INTERRUPT
+      #ifndef USB_INTERRUPT
         usb_service();
-#endif
+        #endif
         int mask = createMask(0, 13);
-        int val = mask & enc_readReg(USB_setup.wValue).w;
-        if (val > 8000) {
-            LED3 = ON;
+        encoder_val = enc_readReg(USB_setup.wValue);
+        int val = mask & encoder_val.w;
+        int difference = val-center;
+        if (difference < 0 ){
+          difference --;
+          difference += pow(2,14);
         }
-        else {
-            LED3 = OFF;
+        if (difference > pow(2,13)){
+          DIR1 = 1;
         }
-    }
+        else{
+          DIR1 = 0;
+        }
+        int spring_force = (difference / pow(2,13)) * K;
+        OC1R = OC1RS * spring_force;  // configure duty cycle to 100%
+        }
+
 }

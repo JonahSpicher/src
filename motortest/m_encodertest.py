@@ -3,6 +3,8 @@ import usb.core
 import time
 import numpy as np
 
+center = -1
+
 class encodertest:
 
     def __init__(self):
@@ -56,7 +58,14 @@ if __name__=='__main__':
 
     # For calibrating
     while enc.read_sw1() == 1:
-        print(enc.get_angle())
+        angle = enc.get_angle()
+        if center == -1:
+            center = angle
+        difference = angle-center
+        if difference < 0 :
+            difference -= 1
+            difference += 2^14
+        print(difference)
         time.sleep(0.5)
 
     # Spin-down test
