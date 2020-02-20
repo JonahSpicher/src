@@ -18,7 +18,7 @@ void __attribute__((interrupt, auto_psv)) _T1Interrupt(void) {
     TCURR += 1;
 
     if (TCURR == TGOAL){
-        D7 = 1;
+        D6 = 1;
     }
 
 }
@@ -40,7 +40,7 @@ int16_t main(void) {
     D7_DIR = OUT;
     D6_DIR = OUT;
 
-    D6 = 1;
+    D6 = 0;
     D7 = 0; //Apparently you have to set enable low
 
     // Configure pin D5 to produce a 1-kHz PWM signal with a 25% duty cycle
