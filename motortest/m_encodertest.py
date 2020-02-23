@@ -2,13 +2,18 @@
 import usb.core
 import time
 import numpy as np
+import sys
+import select
+import tty
+import termios
 
-center = -1
+def isData():
+        return select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], [])
 
 class encodertest:
 
     def __init__(self):
-        self.TOGGLE_LED1 = 0
+        self.TOGGLE_STATE = 0
         self.TOGGLE_LED2 = 1
         self.TOGGLE_LED3 = 2
         self.READ_SW1 = 3
@@ -49,24 +54,51 @@ class encodertest:
         else:
             return (int(ret[0]) + 256 * int(ret[1])) & 0x3FFF
 
+    def toggle_state(self):
+        try:
+            self.dev.ctrl_transfer(0x40, self.TOGGLE_STATE)
+        except usb.core.USBError:
+            print("Could not send TOGGLE_STATE vendor request.")
+
 if __name__=='__main__':
+    old_settings = termios.tcgetattr(sys.stdin)
+
     enc = encodertest()
     start = time.time()
     now = start
     data = np.zeros(1000)
     i = 0
 
+
+
+
     # For calibrating
-    while enc.read_sw1() == 1:
-        angle = enc.get_angle()
-        if center == -1:
-            center = angle
-        difference = angle-center
-        if difference < 0 :
-            difference -= 1
-            difference += 2^14
-        print(difference)
-        time.sleep(0.5)
+    try:
+        tty.setcbreak(sys.stdin.fileno())
+        while enc.read_sw1() == 1:
+            time.sleep(0.5)
+            angle = enc.get_angle()
+            print("Measured at:", angle)
+            difference = angle - 2**13
+            print("Difference:", difference)
+            if difference >= 0:
+                scale = 1560
+            else:
+                scale = 1230
+            scale = 0.5*((difference/scale) * 0.5) + 0.5
+            print("Spring_force is:", 0.7*difference/1350, '\n')
+
+
+            if isData():
+                c = sys.stdin.read(1)
+                if c == '1':         # x1b is ESC
+                    enc.toggle_state()
+                    print("triggered")
+
+    finally:
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+
+
 
     # Spin-down test
     # while (now - start) < 8: #Only runs for 8 seconds to keep data small

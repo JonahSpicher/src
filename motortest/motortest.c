@@ -51,7 +51,7 @@
 #define ENC_MOSI_RP         D13_RP
 #define ENC_SCK_RP          D10_RP
 
-#define TOGGLE_LED1         0
+#define TOGGLE_STATE         0
 #define TOGGLE_LED2         1
 #define TOGGLE_LED3         2
 #define READ_SW1            3
@@ -59,10 +59,12 @@
 #define READ_SW3            5
 #define ENC_READ_REG        6
 
-int TSTART = 4; //Allow for time to connect to the board with python
-int TSPINUP = 4; //Allow motor to get up to speed
-int TCURR = 0;   //Keep track of how many times the timer has been triggered
-float K = 0.3;  //spring constant (maximum duty cycle of resistance)
+int TSTART = 4;     //Allow for time to connect to the board with python
+int TSPINUP = 4;    //Allow motor to get up to speed
+int TCURR = 0;      //Keep track of how many times the timer has been triggered
+float K = 0.3;      //spring constant (maximum duty cycle of resistance)
+int MSTATE = 1;     //Toggles behavior of motor
+int NUM_STATES = 2; //Number of motor behaviors
 WORD encoder_val;
 
 
@@ -137,8 +139,11 @@ void vendor_requests(void) {
     uint16_t i;
 
     switch (USB_setup.bRequest) {
-        case TOGGLE_LED1:
-            LED1 = !LED1;
+        case TOGGLE_STATE:
+            MSTATE ++;
+            if (MSTATE > NUM_STATES - 1){
+                MSTATE = 0;
+            }
             BD[EP0IN].bytecount = 0;
             BD[EP0IN].status = UOWN | DTS | DTSEN;
             break;
@@ -169,7 +174,7 @@ void vendor_requests(void) {
             break;
         case ENC_READ_REG:
             //temp = enc_readReg(USB_setup.wValue);
-            //encoder_val = enc_readReg(USB_setup.wValue);
+            encoder_val = enc_readReg(USB_setup.wValue);
             temp = encoder_val;
             BD[EP0IN].address[0] = temp.b[0];
             BD[EP0IN].address[1] = temp.b[1];
@@ -245,81 +250,68 @@ int16_t main(void) {
 
     USB_setup_vendor_callback = vendor_requests;
     init_usb();
-
     int mask = createMask(0, 13);
-    int center = mask & enc_readReg(USB_setup.wValue).w;
-    int anti_center = center + pow(2, 13);
-    if (anti_center > pow(2,14)) {
-        anti_center = anti_center - pow(2,14);
-    }
 
     while (USB_USWSTAT != CONFIG_STATE) {
-      #ifndef USB_INTERRUPT
-        usb_service();
+        #ifndef USB_INTERRUPT
+            usb_service();
         #endif
         encoder_val = enc_readReg(USB_setup.wValue);
-        int val = mask & encoder_val.w;
-        int difference = val-center;
-        float spring_force;
-          // difference is negative so either in -R or -L case
-          if (val > center | val < anti_center) {
-              // Case R
-              DIR1 = 0;
-              if (difference < 0){
-                  spring_force = K*(pow(2, 14) + difference)/pow(2, 13);
-              }
-              else {
-                  spring_force = K*difference/pow(2,13);
-              }
+        float val = (float)(mask & encoder_val.w);
+        switch (MSTATE) {
+            case 0: ; //Spring
+                float difference = val-pow(2,13);
+                float scale;
+                if (difference >= 0) {
+                    DIR1 = 0;
+                    scale = 1560;
+                }
+                else {
+                    DIR1 = 1;
+                    scale = 1230;
+                }
+                float spring_force = 0.5*((abs(difference) / scale) * K) + 0.5;
+                OC1R = OC1RS * spring_force;  // configure duty cycle to 100%
+            case 1: //Wall
+                OC1R = OC1RS; //Try to spin the motor at full speed
+                if (val > 8500) {
+                    M_EN = 0; //Enables once past a certain point
+                }
+                else {
+                    M_EN = 1; //Otherwise disables
+                }
+        }
 
-          }
-          else {
-              //Case L
-              DIR1 = 1;
-              if (difference < 0){
-                  spring_force = K*abs(difference)/pow(2,13);
-              }
-              else {
-                  spring_force = K*abs(difference-pow(2,14))/pow(2,13);
-              }
-          }
-
-        //float spring_force = (difference / pow(2,13)) * K;
-        OC1R = OC1RS * spring_force;  // configure duty cycle to 100%
     }
     while (1) {
-      #ifndef USB_INTERRUPT
-        usb_service();
+        #ifndef USB_INTERRUPT
+            usb_service();
         #endif
         encoder_val = enc_readReg(USB_setup.wValue);
-        int val = mask & encoder_val.w;
-        int difference = val-center;
-        float spring_force;
-          // difference is negative so either in -R or -L case
-          if (val > center | val < anti_center) {
-              // Case R
-              DIR1 = 0;
-              if (difference < 0){
-                  spring_force = K*(pow(2, 14) + difference)/pow(2, 13);
-              }
-              else {
-                  spring_force = K*difference/pow(2,13);
-              }
-
-          }
-          else {
-              //Case L
-              DIR1 = 1;
-              if (difference < 0){
-                  spring_force = K*abs(difference)/pow(2,13);
-              }
-              else {
-                  spring_force = K*abs(difference-pow(2,14))/pow(2,13);
-              }
-          }
-
-        //float spring_force = (difference / pow(2,13)) * K;
-        OC1R = OC1RS * spring_force;  // configure duty cycle to 100%
+        float val = (float)(mask & encoder_val.w);
+        switch (MSTATE) {
+            case 0: ; //Spring
+                float difference = val-pow(2,13);
+                float scale;
+                if (difference >= 0) {
+                    DIR1 = 0;
+                    scale = 1560;
+                }
+                else {
+                    DIR1 = 1;
+                    scale = 1230;
+                }
+                float spring_force = 0.5*((abs(difference) / scale) * K) + 0.5;
+                OC1R = OC1RS * spring_force;  // configure duty cycle to 100%
+            case 1: //Wall
+                OC1R = OC1RS; //Try to spin the motor at full speed
+                if (val > 8500) {
+                    M_EN = 0; //Enables once past a certain point
+                }
+                else {
+                    M_EN = 1; //Otherwise disables
+                }
         }
+    }
 
 }
