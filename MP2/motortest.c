@@ -248,7 +248,7 @@ int16_t main(void) {
         #ifndef USB_INTERRUPT
             usb_service();
         #endif
-        encoder_val = enc_readReg(USB_setup.wValue);
+        //encoder_val = enc_readReg(USB_setup.wValue);
         float val = (float)(mask & encoder_val.w);
         switch (MSTATE) {
             case 0: ; //Spring

@@ -13,12 +13,11 @@ def isData():
 class encodertest:
 
     def __init__(self):
-        self.TOGGLE_STATE = 0
-        self.TOGGLE_LED2 = 1
-        self.TOGGLE_LED3 = 2
-        self.READ_SW1 = 3
-        self.READ_SW2 = 4
-        self.READ_SW3 = 5
+        self.SPRING_STATE = 0
+        self.WALL_STATE = 1
+        self.DAMP_STATE = 2
+        self.TEXTURE_STATE = 3
+        self.READ_SW1 = 4
         self.ENC_READ_REG = 6
         self.dev = usb.core.find(idVendor = 0x6666, idProduct = 0x0003)
         if self.dev is None:
@@ -60,6 +59,30 @@ class encodertest:
         except usb.core.USBError:
             print("Could not send TOGGLE_STATE vendor request.")
 
+    def spring_state(self):
+        try:
+            self.dev.ctrl_transfer(0x40, self.SPRING_STATE)
+        except usb.core.USBError:
+            print("Could not send TOGGLE_STATE vendor request.")
+
+    def wall_state(self):
+        try:
+            self.dev.ctrl_transfer(0x40, self.WALL_STATE)
+        except usb.core.USBError:
+            print("Could not send TOGGLE_STATE vendor request.")
+
+    def damp_state(self):
+        try:
+            self.dev.ctrl_transfer(0x40, self.DAMP_STATE)
+        except usb.core.USBError:
+            print("Could not send TOGGLE_STATE vendor request.")
+
+    def texture_state(self):
+        try:
+            self.dev.ctrl_transfer(0x40, self.TEXTURE_STATE)
+        except usb.core.USBError:
+            print("Could not send TOGGLE_STATE vendor request.")
+
 if __name__=='__main__':
     old_settings = termios.tcgetattr(sys.stdin)
 
@@ -73,35 +96,44 @@ if __name__=='__main__':
 
 
     # For calibrating
-    try:
-        tty.setcbreak(sys.stdin.fileno())
-        while enc.read_sw1() == 1:
-            time.sleep(0.5)
-            angle = enc.get_angle()
-            print("Measured at:", angle)
-            difference = angle - 2**13
-            print("Difference:", difference)
-            if difference >= 0:
-                scale = 1560
-            else:
-                scale = 1230
-            scale = 0.5*((difference/scale) * 0.5) + 0.5
-            print("Spring_force is:", 0.7*difference/1350, '\n')
+try:
+    tty.setcbreak(sys.stdin.fileno())
+    while enc.read_sw1() == 1:
+        time.sleep(0.5)
+        angle = enc.get_angle()
+        print("Measured at:", angle)
+        difference = angle - 2**13
+        print("Difference:", difference)
+        if difference >= 0:
+            scale = 1560
+        else:
+            scale = 1230
+        scale = 0.5*((difference/scale) * 0.5) + 0.5
+        print("Spring_force is:", 0.7*difference/1350, '\n')
 
 
-            if isData():
-                c = sys.stdin.read(1)
-                if c == '1':         # x1b is ESC
-                    enc.toggle_state()
-                    print("triggered")
+        if isData():
+            c = sys.stdin.read(1)
+            if c == '1':         # x1b is ESC
+                enc.spring_state()
+                print("spring")
+            if c == '2':         # x1b is ESC
+                enc.wall_state()
+                print("wall")
+            if c == '3':         # x1b is ESC
+                enc.damp_state()
+                print("damping")
+            if c == '4':         # x1b is ESC
+                enc.texture_state()
+                print("texture")
 
-    finally:
-        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+finally:
+    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
 
 
 
     # Spin-down test
-    # while (now - start) < 8: #Only runs for 8 seconds to keep data small
+    # while (now - start) < 3: #Only runs for 8 seconds to keep data small
     #     data[i] = enc.get_angle()
     #     i += 1
     #     time.sleep(0.01)
@@ -111,4 +143,4 @@ if __name__=='__main__':
     # print("Finished:", now)
     # data = data[0:i+1]
     #
-    # np.save("spindown.npy", data)
+    # np.save("turn.npy", data)

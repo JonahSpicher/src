@@ -61,13 +61,10 @@ class encodertestgui:
         self.sw2_status.configure(text = 'SW2 is currently {!s}'.format(self.dev.read_sw2()))
         self.sw3_status.configure(text = 'SW3 is currently {!s}'.format(self.dev.read_sw3()))
         d = self.dev.get_angle()
-        self.data[self.data_ind] = d
-        self.data_ind += 1
         self.enc_status.configure(text = 'Angle is {:05d}'.format(d))
         self.update_job = self.root.after(50, self.update_status)
 
     def shut_down(self):
-        np.save("spindown.npy", self.data)
         self.root.after_cancel(self.update_job)
         self.root.destroy()
         self.dev.close()

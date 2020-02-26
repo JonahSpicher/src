@@ -27,29 +27,33 @@
 #include "elecanisms.h"
 #include "usb.h"
 
-// #define ENC_MISO            D1
-// #define ENC_MOSI            D0
-// #define ENC_SCK             D2
-// #define ENC_CSn             D3
+#define ENC_MISO            D1
+#define ENC_MOSI            D0
+#define ENC_SCK             D2
+#define ENC_CSn             D3
 
-#define ENC_MISO            D12
-#define ENC_MOSI            D13
-#define ENC_SCK             D11
-#define ENC_CSn             D10
+// #define ENC_MISO            D12
+// #define ENC_MOSI            D13
+// #define ENC_SCK             D10
+// #define ENC_CSn             D9
 
-// #define ENC_MISO_DIR        D1_DIR
-// #define ENC_MOSI_DIR        D0_DIR
-// #define ENC_SCK_DIR         D2_DIR
-// #define ENC_CSn_DIR         D3_DIR
+#define ENC_MISO_DIR        D1_DIR
+#define ENC_MOSI_DIR        D0_DIR
+#define ENC_SCK_DIR         D2_DIR
+#define ENC_CSn_DIR         D3_DIR
 
-#define ENC_MISO_DIR        D12_DIR
-#define ENC_MOSI_DIR        D13_DIR
-#define ENC_SCK_DIR         D11_DIR
-#define ENC_CSn_DIR         D10_DIR
+// #define ENC_MISO_DIR        D12_DIR
+// #define ENC_MOSI_DIR        D13_DIR
+// #define ENC_SCK_DIR         D10_DIR
+// #define ENC_CSn_DIR         D9_DIR
 
-#define ENC_MISO_RP         D12_RP
-#define ENC_MOSI_RP         D13_RP
-#define ENC_SCK_RP          D11_RP
+#define ENC_MISO_RP         D1_RP
+#define ENC_MOSI_RP         D0_RP
+#define ENC_SCK_RP          D2_RP
+
+// #define ENC_MISO_RP         D12_RP
+// #define ENC_MOSI_RP         D13_RP
+// #define ENC_SCK_RP          D9_RP
 
 #define TOGGLE_LED1         0
 #define TOGGLE_LED2         1

@@ -29,44 +29,35 @@
 #include "math.h"
 #include <stdio.h>
 
-#define MISO            D1
-#define MOSI            D0
-#define SCK             D2
-#define CSn             D3
+#define ENC_MOSI        D0
+#define ENC_MISO        D1
+#define ENC_SCK         D2
+#define ENC_CSn         D3
 #define PWM             D5
 #define DIR1            D6
 #define M_EN            D7
 
-#define ENC_MISO            D12
-#define ENC_MOSI            D13
-#define ENC_SCK             D10
-#define ENC_CSn             D9
+#define ENC_MISO_DIR        D1_DIR
+#define ENC_MOSI_DIR        D0_DIR
+#define ENC_SCK_DIR         D2_DIR
+#define ENC_CSn_DIR         D3_DIR
 
-#define ENC_MISO_DIR        D12_DIR
-#define ENC_MOSI_DIR        D13_DIR
-#define ENC_SCK_DIR         D10_DIR
-#define ENC_CSn_DIR         D9_DIR
+#define ENC_MISO_RP         D1_RP
+#define ENC_MOSI_RP         D0_RP
+#define ENC_SCK_RP          D2_RP
 
-#define ENC_MISO_RP         D12_RP
-#define ENC_MOSI_RP         D13_RP
-#define ENC_SCK_RP          D10_RP
-
-#define TOGGLE_STATE         0
-#define TOGGLE_LED2         1
-#define TOGGLE_LED3         2
-#define READ_SW1            3
-#define READ_SW2            4
-#define READ_SW3            5
+#define SPRING_MODE         0
+#define WALL_MODE           1
+#define DAMP_MODE           2
+#define TEXTURE_MODE        3
+#define SWITCH_1            4
 #define ENC_READ_REG        6
 
 int TSTART = 4;     //Allow for time to connect to the board with python
 int TSPINUP = 4;    //Allow motor to get up to speed
 int TCURR = 0;      //Keep track of how many times the timer has been triggered
 float K = 0.3;      //spring constant (maximum duty cycle of resistance)
-int MSTATE = 1;     //Toggles behavior of motor
-int NUM_STATES = 2; //Number of motor behaviors
-WORD encoder_val;
-
+int MSTATE = 0;     //Toggles behavior of motor
 
 void __attribute__((interrupt, auto_psv)) _T1Interrupt(void) {
     IFS0bits.T1IF = 0;      // lower Timer1 interrupt flag
@@ -139,43 +130,33 @@ void vendor_requests(void) {
     uint16_t i;
 
     switch (USB_setup.bRequest) {
-        case TOGGLE_STATE:
-            MSTATE ++;
-            if (MSTATE > NUM_STATES - 1){
-                MSTATE = 0;
-            }
+        case SPRING_MODE:
+            MSTATE = 0;
             BD[EP0IN].bytecount = 0;
             BD[EP0IN].status = UOWN | DTS | DTSEN;
             break;
-        case TOGGLE_LED2:
-            LED2 = !LED2;
+        case WALL_MODE:
+            MSTATE = 1;
             BD[EP0IN].bytecount = 0;
             BD[EP0IN].status = UOWN | DTS | DTSEN;
             break;
-        case TOGGLE_LED3:
-            LED3 = !LED3;
+        case DAMP_MODE:
+            MSTATE = 2;
             BD[EP0IN].bytecount = 0;
             BD[EP0IN].status = UOWN | DTS | DTSEN;
             break;
-        case READ_SW1:
+        case TEXTURE_MODE:
+            MSTATE = 3;
+            BD[EP0IN].bytecount = 0;
+            BD[EP0IN].status = UOWN | DTS | DTSEN;
+            break;
+        case SWITCH_1:
             BD[EP0IN].address[0] = SW1 ? 1 : 0;
             BD[EP0IN].bytecount = 1;
             BD[EP0IN].status = UOWN | DTS | DTSEN;
             break;
-        case READ_SW2:
-            BD[EP0IN].address[0] = SW2 ? 1 : 0;
-            BD[EP0IN].bytecount = 1;
-            BD[EP0IN].status = UOWN | DTS | DTSEN;
-            break;
-        case READ_SW3:
-            BD[EP0IN].address[0] = SW3 ? 1 : 0;
-            BD[EP0IN].bytecount = 1;
-            BD[EP0IN].status = UOWN | DTS | DTSEN;
-            break;
         case ENC_READ_REG:
-            //temp = enc_readReg(USB_setup.wValue);
-            encoder_val = enc_readReg(USB_setup.wValue);
-            temp = encoder_val;
+            temp = enc_readReg(USB_setup.wValue);
             BD[EP0IN].address[0] = temp.b[0];
             BD[EP0IN].address[1] = temp.b[1];
             BD[EP0IN].bytecount = 2;
@@ -202,8 +183,11 @@ int16_t main(void) {
     D7_DIR = OUT;
     D6_DIR = OUT;
 
-    DIR1 = 1;
-    M_EN = 0; //Initially enable
+    LED2 = 0;
+    LED3 = 0;
+
+    DIR1 = 1; //Initial motor direction I guess
+    M_EN = 1; //Initially disable
 
     // Configure pin D5 to produce a 1-kHz PWM signal with a 25% duty cycle
     // using the OC1 module.
@@ -224,9 +208,9 @@ int16_t main(void) {
     OC1CON2 = 0x001F;   // configure OC1 module to syncrhonize to itself
                         //   (i.e., OCTRIG = 0 and SYNCSEL<4:0> = 0b11111)
 
-    OC1RS = (uint16_t)(FCY / 30e3 - 1.);     // configure period register to
+    OC1RS = (uint16_t)(FCY / 1e3 - 1.);     // configure period register to
                                             //   get a frequency of 1kHz
-    OC1R = OC1RS>>2;  // configure duty cycle to 100%
+    OC1R = OC1RS;  // configure duty cycle to 100%
     OC1TMR = 0;         // set OC1 timer count to 0
 
     // Configure encoder pins and connect them to SPI2
@@ -256,61 +240,57 @@ int16_t main(void) {
         #ifndef USB_INTERRUPT
             usb_service();
         #endif
-        encoder_val = enc_readReg(USB_setup.wValue);
-        float val = (float)(mask & encoder_val.w);
-        switch (MSTATE) {
-            case 0: ; //Spring
-                float difference = val-pow(2,13);
-                float scale;
-                if (difference >= 0) {
-                    DIR1 = 0;
-                    scale = 1560;
-                }
-                else {
-                    DIR1 = 1;
-                    scale = 1230;
-                }
-                float spring_force = 0.5*((abs(difference) / scale) * K) + 0.5;
-                OC1R = OC1RS * spring_force;  // configure duty cycle to 100%
-            case 1: //Wall
-                OC1R = OC1RS; //Try to spin the motor at full speed
-                if (val > 8500) {
-                    M_EN = 0; //Enables once past a certain point
-                }
-                else {
-                    M_EN = 1; //Otherwise disables
-                }
-        }
-
     }
     while (1) {
         #ifndef USB_INTERRUPT
             usb_service();
         #endif
-        encoder_val = enc_readReg(USB_setup.wValue);
-        float val = (float)(mask & encoder_val.w);
+        disable_interrupts();
+        float val = (float)(mask & enc_readReg(USB_setup.wValue).w);
+        enable_interrupts();
         switch (MSTATE) {
             case 0: ; //Spring
-                float difference = val-pow(2,13);
-                float scale;
-                if (difference >= 0) {
-                    DIR1 = 0;
-                    scale = 1560;
-                }
-                else {
-                    DIR1 = 1;
-                    scale = 1230;
-                }
-                float spring_force = 0.5*((abs(difference) / scale) * K) + 0.5;
-                OC1R = OC1RS * spring_force;  // configure duty cycle to 100%
+                LED2 = 1;
+                LED3 = 1;
+                // float difference = val-pow(2,13);
+                // float scale;
+                // if (difference >= 0) {
+                //     DIR1 = 0;
+                //     scale = 1560;
+                // }
+                // else {
+                //     DIR1 = 1;
+                //     scale = 1230;
+                // }
+                // float spring_force = 0.5*((abs(difference) / scale) * K) + 0.5;
+                // OC1R = OC1RS * spring_force;  // configure duty cycle to 100%12
+                M_EN = 1;
+                break;
             case 1: //Wall
-                OC1R = OC1RS; //Try to spin the motor at full speed
+                OC1R = OC1RS;
                 if (val > 8500) {
+                    LED3 = 1;
                     M_EN = 0; //Enables once past a certain point
                 }
                 else {
+                    LED3 = 0;
                     M_EN = 1; //Otherwise disables
                 }
+                break;
+            case 2: ; //damping
+                LED2 = 1;
+                LED3 = 0;
+                // OC1R = OC1RS;
+                // DIR1 = 1;
+                M_EN = 1;
+                break;
+            case 3: ; //texture
+                LED2 = 0;
+                LED3 = 0;
+                // OC1R = OC1RS;
+                // DIR1 = 0;
+                M_EN = 1;
+                break;
         }
     }
 
