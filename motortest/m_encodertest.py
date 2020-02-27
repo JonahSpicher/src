@@ -99,8 +99,12 @@ if __name__=='__main__':
 try:
     tty.setcbreak(sys.stdin.fileno())
     while enc.read_sw1() == 1:
-        time.sleep(0.5)
+        time.sleep(0.05)
         angle = enc.get_angle()
+        data[i] = angle
+        i += 1
+
+        print("Started at:", start)
         print("Measured at:", angle)
         difference = angle - 2**13
         print("Difference:", difference)
@@ -129,6 +133,11 @@ try:
 
 finally:
     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+    #print("hello")
+    now = time.time()
+    print("Started at:", start)
+    print("Finished:", now)
+    np.save("spring.npy", data)
 
 
 

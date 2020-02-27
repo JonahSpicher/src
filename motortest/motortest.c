@@ -56,8 +56,8 @@
 int TSTART = 4;     //Allow for time to connect to the board with python
 int TSPINUP = 4;    //Allow motor to get up to speed
 int TCURR = 0;      //Keep track of how many times the timer has been triggered
-float K = 0.3;      //spring constant (maximum duty cycle of resistance)
-int MSTATE = 0;     //Toggles behavior of motor
+float K = 3;      //spring constant (maximum duty cycle of resistance)
+int MSTATE = 1;     //Toggles behavior of motor
 
 void __attribute__((interrupt, auto_psv)) _T1Interrupt(void) {
     IFS0bits.T1IF = 0;      // lower Timer1 interrupt flag
@@ -247,6 +247,8 @@ int16_t main(void) {
         #endif
         disable_interrupts();
         float val = (float)(mask & enc_readReg((WORD)0x3FFF).w);
+        int prev_val = 8192;
+        int prev_dif = 0;
         enable_interrupts();
         switch (MSTATE) {
             case 0: ; //Spring
@@ -262,13 +264,14 @@ int16_t main(void) {
                     DIR1 = 1;
                     scale = 1230;
                 }
-                float spring_force = 0.8*((abs(difference) / scale) * K) + 0.2; //Tweak the two 0.5's
-                OC1R = OC1RS * spring_force;
+                //float spring_force = (8*((abs(difference) / scale) * K) + 2)/10; // Offset of 0.2, then linear for the remaining 0.8
+                OC1R = OC1RS * (8*((abs(difference) / scale) * 3)/10 + 2)/10; //K is 3/10
                 M_EN = 0;
                 break;
 
             case 1: //Wall
                 OC1R = OC1RS>>2;
+                DIR1 = 0;
                 if (val > 8500) {
                     LED3 = 1;
                     M_EN = 0; //Enables once past a certain point
@@ -281,15 +284,29 @@ int16_t main(void) {
             case 2: ; //damping
                 LED2 = 1;
                 LED3 = 0;
-                // OC1R = OC1RS;
-                // DIR1 = 1;
-                M_EN = 1;
+                int d_dif = (int)(val - prev_val);
+                //Set direction based on sign
+                if (d_dif < 0){
+                    DIR1 = 0;
+                }
+                else {
+                    DIR1 = 1;
+                }
+                d_dif = ((prev_dif>>2) + (3*d_dif>>2)); // 1/4 old values, 3/4 new values
+                int max_dif = 3;
+                int d_scale = 20; //because it moves very fast
+                //float damp_force = difference/max_dif;
+                OC1R = d_scale*(OC1RS*d_dif)/max_dif;
+                prev_dif = d_dif;
+                prev_val = val;
+                M_EN = 0;
                 break;
             case 3: ; //texture
                 LED2 = 0;
                 LED3 = 0;
-                // OC1R = OC1RS;
-                // DIR1 = 0;
+                DIR1 = 0;
+                int dist = (int)val % 20; // Should feel bumpy as you pass multiples of twenty
+                OC1R = (OC1RS*dist)/(40); // Scales to a max of 50% duty cycle
                 M_EN = 1;
                 break;
         }
