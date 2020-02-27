@@ -208,7 +208,7 @@ int16_t main(void) {
     OC1CON2 = 0x001F;   // configure OC1 module to syncrhonize to itself
                         //   (i.e., OCTRIG = 0 and SYNCSEL<4:0> = 0b11111)
 
-    OC1RS = (uint16_t)(FCY / 1e3 - 1.);     // configure period register to
+    OC1RS = (uint16_t)(FCY / 30e3 - 1.);     // configure period register to
                                             //   get a frequency of 1kHz
     OC1R = OC1RS;  // configure duty cycle to 100%
     OC1TMR = 0;         // set OC1 timer count to 0
@@ -246,28 +246,29 @@ int16_t main(void) {
             usb_service();
         #endif
         disable_interrupts();
-        float val = (float)(mask & enc_readReg(USB_setup.wValue).w);
+        float val = (float)(mask & enc_readReg((WORD)0x3FFF).w);
         enable_interrupts();
         switch (MSTATE) {
             case 0: ; //Spring
                 LED2 = 1;
                 LED3 = 1;
-                // float difference = val-pow(2,13);
-                // float scale;
-                // if (difference >= 0) {
-                //     DIR1 = 0;
-                //     scale = 1560;
-                // }
-                // else {
-                //     DIR1 = 1;
-                //     scale = 1230;
-                // }
-                // float spring_force = 0.5*((abs(difference) / scale) * K) + 0.5;
-                // OC1R = OC1RS * spring_force;  // configure duty cycle to 100%12
-                M_EN = 1;
+                float difference = val-pow(2,13);
+                float scale;
+                if (difference >= 0) {
+                    DIR1 = 0;
+                    scale = 1560;
+                }
+                else {
+                    DIR1 = 1;
+                    scale = 1230;
+                }
+                float spring_force = 0.8*((abs(difference) / scale) * K) + 0.2; //Tweak the two 0.5's
+                OC1R = OC1RS * spring_force;
+                M_EN = 0;
                 break;
+
             case 1: //Wall
-                OC1R = OC1RS;
+                OC1R = OC1RS>>2;
                 if (val > 8500) {
                     LED3 = 1;
                     M_EN = 0; //Enables once past a certain point
