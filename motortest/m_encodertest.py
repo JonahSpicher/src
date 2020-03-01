@@ -19,6 +19,8 @@ class encodertest:
         self.TEXTURE_STATE = 3
         self.READ_SW1 = 4
         self.ENC_READ_REG = 6
+        self.TUNE_UP = 7
+        self.TUNE_DOWN = 8
         self.dev = usb.core.find(idVendor = 0x6666, idProduct = 0x0003)
         if self.dev is None:
             raise ValueError('no USB device found matching idVendor = 0x6666 and idProduct = 0x0003')
@@ -83,13 +85,40 @@ class encodertest:
         except usb.core.USBError:
             print("Could not send TOGGLE_STATE vendor request.")
 
+    def tune_up(self):
+        try:
+            self.dev.ctrl_transfer(0x40, self.TUNE_UP)
+        except usb.core.USBError:
+            print("Could not send TOGGLE_STATE vendor request.")
+
+    def tune_down(self):
+        try:
+            self.dev.ctrl_transfer(0x40, self.TUNE_DOWN)
+        except usb.core.USBError:
+            print("Could not send TOGGLE_STATE vendor request.")
+
+    def get_current(self):
+        try:
+            ret = self.dev.ctrl_transfer(0xC0, self.ENC_READ_REG, 0x3FFF, 0, 2)
+        except usb.core.USBError:
+            print ("Could not send ENC_READ_REG vendor request.")
+        else:
+            return (int(ret[0]) + 256 * int(ret[1])) & 0x03FF
+
 if __name__=='__main__':
     old_settings = termios.tcgetattr(sys.stdin)
+
+    state = "wall"
+    k = 0.3
+    damping = 20
+    max_bump_size = 1000
 
     enc = encodertest()
     start = time.time()
     now = start
     data = np.zeros(1000)
+    dcs = np.zeros(1000)
+    diffs = np.zeros(1000)
     i = 0
 
 
@@ -99,37 +128,74 @@ if __name__=='__main__':
 try:
     tty.setcbreak(sys.stdin.fileno())
     while enc.read_sw1() == 1:
-        time.sleep(0.05)
+        time.sleep(0.01)
         angle = enc.get_angle()
+        #current = enc.get_current()
         data[i] = angle
         i += 1
+        if state == "textured":
+            DC = (angle % 500) / max_bump_size
+            dcs[i] = DC
+        elif state == "damped":
+            diff = (data[i] - data[i-1])/0.01
+            diffs[i] = diff
+            #diffs[i] = (diff*0.75 + diffs[i-1]*0.25)
+            dc = diffs[i]/300
+            dcs[i] = dc
 
-        print("Started at:", start)
-        print("Measured at:", angle)
-        difference = angle - 2**13
-        print("Difference:", difference)
-        if difference >= 0:
-            scale = 1560
-        else:
-            scale = 1230
-        scale = 0.5*((difference/scale) * 0.5) + 0.5
-        print("Spring_force is:", 0.7*difference/1350, '\n')
+
+        #print("Started at:", start)
+        #print("Measured at:", angle)
+        #difference = angle - 2**13
+        #print("Difference:", difference)
+        # if difference >= 0:
+        #     scale = 1560
+        # else:
+        #     scale = 1230
+        # scale = 0.5*((difference/scale) * 0.5) + 0.5
+        # print("Spring_force is:", 0.7*difference/1350, '\n')
 
 
         if isData():
             c = sys.stdin.read(1)
             if c == '1':         # x1b is ESC
                 enc.spring_state()
-                print("spring")
+                state = "spring"
+
             if c == '2':         # x1b is ESC
                 enc.wall_state()
-                print("wall")
+                state = "wall"
             if c == '3':         # x1b is ESC
                 enc.damp_state()
-                print("damping")
+                state = "damped"
             if c == '4':         # x1b is ESC
                 enc.texture_state()
-                print("texture")
+                state = "textured"
+            if c == '5':         # x1b is ESC
+                enc.tune_up()
+                print("Tuned UP")
+                if state == "spring":
+                    k += 0.1
+                    print("Spring Constant:", k)
+                elif state == "damped":
+                    damping += 1
+                    print("Damping Parameter:", damping)
+                elif state == "textured":
+                    max_bump_size -= 1
+                    print("Max duty cycle:", 500/max_bump_size)
+            if c == '6':         # x1b is ESC
+                enc.tune_down()
+                print("Tuned DOWN")
+                if state == "spring":
+                    k -= 0.1
+                    print("Spring Constant:", k)
+                elif state == "damped":
+                    damping -= 1
+                    print("Damping Parameter:", damping)
+                elif state == "textured":
+                    max_bump_size += 1
+                    print("Max duty cycle:", 500/max_bump_size)
+            print("State:", state)
 
 finally:
     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
@@ -137,7 +203,9 @@ finally:
     now = time.time()
     print("Started at:", start)
     print("Finished:", now)
-    np.save("spring.npy", data)
+    np.save("damp-velocity.npy", diffs[0:i+1])
+    np.save("damp-dc.npy", dcs[0:i+1])
+    np.save("damp-position.npy", data[0:i+1])
 
 
 

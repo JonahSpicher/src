@@ -52,12 +52,18 @@
 #define TEXTURE_MODE        3
 #define SWITCH_1            4
 #define ENC_READ_REG        6
+#define TUNE_UP             7
+#define TUNE_DOWN           8
+#define READ_CURRENT        9
 
 int TSTART = 4;     //Allow for time to connect to the board with python
 int TSPINUP = 4;    //Allow motor to get up to speed
 int TCURR = 0;      //Keep track of how many times the timer has been triggered
-float K = 3;      //spring constant (maximum duty cycle of resistance)
+float K = 3;        //spring constant (maximum duty cycle of resistance)
 int MSTATE = 1;     //Toggles behavior of motor
+int D_SCALE = 20;   // Affects damping in some way
+int BUMP_SIZE = 1000; // Closer to twenty means larger bumps, bigger means smaller bumps
+
 
 void __attribute__((interrupt, auto_psv)) _T1Interrupt(void) {
     IFS0bits.T1IF = 0;      // lower Timer1 interrupt flag
@@ -157,6 +163,57 @@ void vendor_requests(void) {
             break;
         case ENC_READ_REG:
             temp = enc_readReg(USB_setup.wValue);
+            BD[EP0IN].address[0] = temp.b[0];
+            BD[EP0IN].address[1] = temp.b[1];
+            BD[EP0IN].bytecount = 2;
+            BD[EP0IN].status = UOWN | DTS | DTSEN;
+            break;
+        case TUNE_UP:
+            BD[EP0IN].bytecount = 0;
+            BD[EP0IN].status = UOWN | DTS | DTSEN;
+        switch (MSTATE) {
+            case 0: ; //Spring
+                K ++; //Bigger spring constant
+                if (K > 10) {
+                    K = 10;
+                }
+                break;
+            case 2: ; //damping
+                D_SCALE ++; //More damping
+                break;
+            case 3: ; //texture
+                BUMP_SIZE --; //Bigger bumps
+                if (BUMP_SIZE < 20) {
+                    BUMP_SIZE = 20;
+                }
+                break;
+            }
+            break;
+        case TUNE_DOWN:
+            BD[EP0IN].bytecount = 0;
+            BD[EP0IN].status = UOWN | DTS | DTSEN;
+            switch (MSTATE) {
+                case 0: ; //Spring
+                    K --;
+                    if (K < 0) {
+                        K = 0;
+                    }
+                    break;
+                case 2: ; //damping
+                    D_SCALE --;
+                    break;
+                case 3: ; //texture
+                    BUMP_SIZE ++;
+                    break;
+            }
+            break;
+        case READ_CURRENT:
+            if (DIR1) {
+                temp.w = read_analog(A0_AN);
+            }
+            else {
+                temp.w = read_analog(A1_AN);
+            }
             BD[EP0IN].address[0] = temp.b[0];
             BD[EP0IN].address[1] = temp.b[1];
             BD[EP0IN].bytecount = 2;
@@ -293,10 +350,10 @@ int16_t main(void) {
                     DIR1 = 1;
                 }
                 d_dif = ((prev_dif>>2) + (3*d_dif>>2)); // 1/4 old values, 3/4 new values
-                int max_dif = 3;
-                int d_scale = 20; //because it moves very fast
+                int max_dif = 300;
+                //because it moves very fast
                 //float damp_force = difference/max_dif;
-                OC1R = d_scale*(OC1RS*d_dif)/max_dif;
+                OC1R = D_SCALE*(OC1RS*d_dif)/max_dif;
                 prev_dif = d_dif;
                 prev_val = val;
                 M_EN = 0;
@@ -305,8 +362,8 @@ int16_t main(void) {
                 LED2 = 0;
                 LED3 = 0;
                 DIR1 = 0;
-                int dist = (int)val % 20; // Should feel bumpy as you pass multiples of twenty
-                OC1R = (OC1RS*dist)/(40); // Scales to a max of 50% duty cycle
+                int dist = (int)val % 500; // Should feel bumpy as you pass multiples of twenty
+                OC1R = (OC1RS*dist)/(BUMP_SIZE); // Scales to a max of 50% duty cycle
                 M_EN = 1;
                 break;
         }

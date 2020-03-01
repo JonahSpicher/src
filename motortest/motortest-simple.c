@@ -9,8 +9,13 @@
 #define PWM             D5
 #define DIR1            D6
 
-int TGOAL = 5;
+int TGOAL = 8;
 int TCURR = 0;
+
+
+// void __attribute__ ((__interrupt__)) _ADC1Interrupt(void) {
+//     IFS0bits.AD1IF = 0;
+// }
 
 
 void __attribute__((interrupt, auto_psv)) _T1Interrupt(void) {
@@ -27,6 +32,37 @@ int16_t main(void) {
     uint8_t *RPOR, *RPINR;
 
     init_elecanisms();
+
+
+    // AD1PCFG = 0xFFFE;      // Configure A/D port// AN0 input pin is analog
+    // AD1CON1 = 0x2202;      // Configure sample clock source
+    //                        // and conversion trigger mode.
+    //                        // Unsigned Fraction format (FORM<1:0>=10),
+    //                        // Manual conversion trigger (SSRC<2:0>=000),
+    //                        // Manual start of sampling (ASAM=0),
+    //                        // No operation in Idle mode (ADSIDL=1),
+    //                        // S/H in Sample (SAMP = 1)
+    // AD1CON2 = 0;           // Configure A/D voltage reference
+    //                        // and buffer fill modes.
+    //                        // Vr+ and Vr- from AVdd and AVss (VCFG<2:0>=000),
+    //                        // Inputs are not scanned,
+    //                        // Interrupt after every sample
+    // AD1CON3 = 0x0100;      // Configure sample time = 1Tad,
+    //                        // A/D conversion clock as Tcy
+    // AD1CHS  = 0;           // Configure input channels,
+    //                        // S/H+ input is AN0,
+    //                        // S/H- input is Vr- (AVss).
+    // AD1CSSL = 0;           // No inputs are scanned.
+    // IFS0bits.AD1IF = 0;    // Clear A/D conversion interrupt.
+    //                        //  Configure A/D interrupt priority bits (AD1IP<2:0>) here, if
+    //                        //  required. Default priority level is 4.
+    // IEC0bits.AD1IE  = 1;   // Enable A/D conversion interrupt
+    // AD1CON1bits.ADON = 1;  // Turn on A/D
+    // AD1CON1bits.SAMP = 1;  // Start sampling the input
+    // Delay();               // Ensure the correct sampling time has elapsed
+    //                        // before starting conversion.AD1CON1bits.SAMP = 0;
+    //                        // End A/D sampling and start conversion
+    //                        //  Example code for A/D ISR:
 
     T1CON = 0x0030;         // set Timer1 period to 0.5s
     PR1 = 0x7A11;
@@ -64,7 +100,7 @@ int16_t main(void) {
 
     OC1RS = (uint16_t)(FCY / 1e3 - 1.);     // configure period register to
                                             //   get a frequency of 1kHz
-    OC1R = OC1RS >> 2;  // configure duty cycle to 100% (i.e., period / 4)
+    OC1R = OC1RS;  // configure duty cycle to 100% (i.e., period / 4)
     OC1TMR = 0;         // set OC1 timer count to 0
     while (1) {}
 }

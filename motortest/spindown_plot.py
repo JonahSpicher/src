@@ -32,6 +32,15 @@ import matplotlib.pyplot as plt
 # plt.ylabel("Angle (Deg)")
 # plt.show()
 
-data = np.load("turn.npy")
-plt.plot(data)
+
+angle = np.load("texture-angle.npy")
+dc = np.load("texture-dc.npy")
+#measured_vs = np.load("damp-velocity.npy")
+#vs = np.gradient(angle)
+#print(len(vs))
+plt.plot(angle[130:-50], dc[130:-50])
+
+plt.title('Textured Duty Cycle Response')
+plt.xlabel('Angular Displacement')
+plt.ylabel('Duty Cycle')
 plt.show()
