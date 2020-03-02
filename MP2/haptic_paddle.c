@@ -29,27 +29,22 @@
 #include "math.h"
 #include <stdio.h>
 
-#define MISO            D1
-#define MOSI            D0
-#define SCK             D2
-#define CSn             D3
+#define ENC_MOSI        D0
+#define ENC_MISO        D1
+#define ENC_SCK         D2
+#define ENC_CSn         D3
 #define PWM             D5
 #define DIR1            D6
 #define M_EN            D7
 
-#define ENC_MISO            D12
-#define ENC_MOSI            D13
-#define ENC_SCK             D10
-#define ENC_CSn             D9
+#define ENC_MISO_DIR        D1_DIR
+#define ENC_MOSI_DIR        D0_DIR
+#define ENC_SCK_DIR         D2_DIR
+#define ENC_CSn_DIR         D3_DIR
 
-#define ENC_MISO_DIR        D12_DIR
-#define ENC_MOSI_DIR        D13_DIR
-#define ENC_SCK_DIR         D10_DIR
-#define ENC_CSn_DIR         D9_DIR
-
-#define ENC_MISO_RP         D12_RP
-#define ENC_MOSI_RP         D13_RP
-#define ENC_SCK_RP          D10_RP
+#define ENC_MISO_RP         D1_RP
+#define ENC_MOSI_RP         D0_RP
+#define ENC_SCK_RP          D2_RP
 
 #define SPRING_MODE         0
 #define WALL_MODE           1
@@ -57,13 +52,18 @@
 #define TEXTURE_MODE        3
 #define SWITCH_1            4
 #define ENC_READ_REG        6
+#define TUNE_UP             7
+#define TUNE_DOWN           8
+#define READ_CURRENT        9
 
 int TSTART = 4;     //Allow for time to connect to the board with python
 int TSPINUP = 4;    //Allow motor to get up to speed
 int TCURR = 0;      //Keep track of how many times the timer has been triggered
-float K = 0.3;      //spring constant (maximum duty cycle of resistance)
-int MSTATE = 0;     //Toggles behavior of motor
-WORD encoder_val;
+float K = 3;        //spring constant (maximum duty cycle of resistance)
+int MSTATE = 1;     //Toggles behavior of motor
+int D_SCALE = 20;   // Affects damping in some way
+int BUMP_SIZE = 1000; // Closer to twenty means larger bumps, bigger means smaller bumps
+
 
 void __attribute__((interrupt, auto_psv)) _T1Interrupt(void) {
     IFS0bits.T1IF = 0;      // lower Timer1 interrupt flag
@@ -162,9 +162,58 @@ void vendor_requests(void) {
             BD[EP0IN].status = UOWN | DTS | DTSEN;
             break;
         case ENC_READ_REG:
-            //temp = enc_readReg(USB_setup.wValue);
-            encoder_val = enc_readReg(USB_setup.wValue);
-            temp = encoder_val;
+            temp = enc_readReg(USB_setup.wValue);
+            BD[EP0IN].address[0] = temp.b[0];
+            BD[EP0IN].address[1] = temp.b[1];
+            BD[EP0IN].bytecount = 2;
+            BD[EP0IN].status = UOWN | DTS | DTSEN;
+            break;
+        case TUNE_UP:
+            BD[EP0IN].bytecount = 0;
+            BD[EP0IN].status = UOWN | DTS | DTSEN;
+        switch (MSTATE) {
+            case 0: ; //Spring
+                K ++; //Bigger spring constant
+                if (K > 10) {
+                    K = 10;
+                }
+                break;
+            case 2: ; //damping
+                D_SCALE ++; //More damping
+                break;
+            case 3: ; //texture
+                BUMP_SIZE --; //Bigger bumps
+                if (BUMP_SIZE < 20) {
+                    BUMP_SIZE = 20;
+                }
+                break;
+            }
+            break;
+        case TUNE_DOWN:
+            BD[EP0IN].bytecount = 0;
+            BD[EP0IN].status = UOWN | DTS | DTSEN;
+            switch (MSTATE) {
+                case 0: ; //Spring
+                    K --;
+                    if (K < 0) {
+                        K = 0;
+                    }
+                    break;
+                case 2: ; //damping
+                    D_SCALE --;
+                    break;
+                case 3: ; //texture
+                    BUMP_SIZE ++;
+                    break;
+            }
+            break;
+        case READ_CURRENT:
+            if (DIR1) {
+                temp.w = read_analog(A0_AN);
+            }
+            else {
+                temp.w = read_analog(A1_AN);
+            }
             BD[EP0IN].address[0] = temp.b[0];
             BD[EP0IN].address[1] = temp.b[1];
             BD[EP0IN].bytecount = 2;
@@ -194,7 +243,7 @@ int16_t main(void) {
     LED2 = 0;
     LED3 = 0;
 
-    DIR1 = 1;
+    DIR1 = 1; //Initial motor direction I guess
     M_EN = 1; //Initially disable
 
     // Configure pin D5 to produce a 1-kHz PWM signal with a 25% duty cycle
@@ -218,7 +267,7 @@ int16_t main(void) {
 
     OC1RS = (uint16_t)(FCY / 30e3 - 1.);     // configure period register to
                                             //   get a frequency of 1kHz
-    OC1R = OC1RS>>2;  // configure duty cycle to 100%
+    OC1R = OC1RS;  // configure duty cycle to 100%
     OC1TMR = 0;         // set OC1 timer count to 0
 
     // Configure encoder pins and connect them to SPI2
@@ -253,49 +302,68 @@ int16_t main(void) {
         #ifndef USB_INTERRUPT
             usb_service();
         #endif
-        encoder_val = enc_readReg(USB_setup.wValue);
-        float val = (float)(mask & encoder_val.w);
+        disable_interrupts();
+        float val = (float)(mask & enc_readReg((WORD)0x3FFF).w);
+        int prev_val = 8192;
+        int prev_dif = 0;
+        enable_interrupts();
         switch (MSTATE) {
             case 0: ; //Spring
                 LED2 = 1;
                 LED3 = 1;
-                // float difference = val-pow(2,13);
-                // float scale;
-                // if (difference >= 0) {
-                //     DIR1 = 0;
-                //     scale = 1560;
-                // }
-                // else {
-                //     DIR1 = 1;
-                //     scale = 1230;
-                // }
-                // float spring_force = 0.5*((abs(difference) / scale) * K) + 0.5;
-                // OC1R = OC1RS * spring_force;  // configure duty cycle to 100%12
-                M_EN = 1;
+                float difference = val-pow(2,13);
+                float scale;
+                if (difference >= 0) {
+                    DIR1 = 0;
+                    scale = 1560;
+                }
+                else {
+                    DIR1 = 1;
+                    scale = 1230;
+                }
+                //float spring_force = (8*((abs(difference) / scale) * K) + 2)/10; // Offset of 0.2, then linear for the remaining 0.8
+                OC1R = OC1RS * (8*((abs(difference) / scale) * 3)/10 + 2)/10; //K is 3/10
+                M_EN = 0;
                 break;
+
             case 1: //Wall
-                LED2 = 0;
-                LED3 = 1;
-                OC1RS = OC1R;
+                OC1R = OC1RS>>2;
+                DIR1 = 0;
                 if (val > 8500) {
+                    LED3 = 1;
                     M_EN = 0; //Enables once past a certain point
                 }
                 else {
+                    LED3 = 0;
                     M_EN = 1; //Otherwise disables
                 }
                 break;
             case 2: ; //damping
                 LED2 = 1;
                 LED3 = 0;
-                // OC1R = OC1RS;
-                // DIR1 = 1;
-                M_EN = 1;
+                int d_dif = (int)(val - prev_val);
+                //Set direction based on sign
+                if (d_dif < 0){
+                    DIR1 = 0;
+                }
+                else {
+                    DIR1 = 1;
+                }
+                d_dif = ((prev_dif>>2) + (3*d_dif>>2)); // 1/4 old values, 3/4 new values
+                int max_dif = 300;
+                //because it moves very fast
+                //float damp_force = difference/max_dif;
+                OC1R = D_SCALE*(OC1RS*d_dif)/max_dif;
+                prev_dif = d_dif;
+                prev_val = val;
+                M_EN = 0;
                 break;
             case 3: ; //texture
                 LED2 = 0;
                 LED3 = 0;
-                // OC1R = OC1RS;
-                // DIR1 = 0;
+                DIR1 = 0;
+                int dist = (int)val % 500; // Should feel bumpy as you pass multiples of twenty
+                OC1R = (OC1RS*dist)/(BUMP_SIZE); // Scales to a max of 50% duty cycle
                 M_EN = 1;
                 break;
         }

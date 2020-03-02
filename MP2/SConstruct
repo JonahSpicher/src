@@ -11,13 +11,13 @@ bin2hex = Builder(action = 'xc16-bin2hex $SOURCE -omf=elf',
                   src_suffix = 'elf')
 env.Append(BUILDERS = {'Hex' : bin2hex})
 list = Builder(action = 'xc16-objdump -S -D $SOURCE > $TARGET',
-               suffix = 'lst', 
+               suffix = 'lst',
                src_suffix = 'elf')
 env.Append(BUILDERS = {'List' : list})
 
-env.Program('encodertest', ['encodertest.c',
+env.Program('haptic_paddle', ['haptic_paddle.c',
                             'descriptors.c',
                             '../lib/usb.c',
                             '../lib/elecanisms.c'])
-env.Hex('encodertest')
-env.List('encodertest')
+env.Hex('haptic_paddle')
+env.List('haptic_paddle')
