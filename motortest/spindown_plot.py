@@ -33,12 +33,12 @@ import matplotlib.pyplot as plt
 # plt.show()
 
 
-angle = np.load("texture-angle.npy")
-dc = np.load("texture-dc.npy")
+current = np.load("current-wall.npy")
+#dc = np.load("texture-dc.npy")
 #measured_vs = np.load("damp-velocity.npy")
 #vs = np.gradient(angle)
 #print(len(vs))
-plt.plot(angle[130:-50], dc[130:-50])
+plt.plot(current)
 
 plt.title('Textured Duty Cycle Response')
 plt.xlabel('Angular Displacement')

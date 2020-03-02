@@ -116,10 +116,10 @@ if __name__=='__main__':
     enc = encodertest()
     start = time.time()
     now = start
-    data = np.zeros(1000)
-    dcs = np.zeros(1000)
-    diffs = np.zeros(1000)
-    i = 0
+    #data = np.zeros(1000)
+    # dcs = np.zeros(1000)
+    # diffs = np.zeros(1000)
+    #i = 0
 
 
 
@@ -129,19 +129,19 @@ try:
     tty.setcbreak(sys.stdin.fileno())
     while enc.read_sw1() == 1:
         time.sleep(0.01)
-        angle = enc.get_angle()
+        #angle = enc.get_angle()
         #current = enc.get_current()
-        data[i] = angle
-        i += 1
-        if state == "textured":
-            DC = (angle % 500) / max_bump_size
-            dcs[i] = DC
-        elif state == "damped":
-            diff = (data[i] - data[i-1])/0.01
-            diffs[i] = diff
-            #diffs[i] = (diff*0.75 + diffs[i-1]*0.25)
-            dc = diffs[i]/300
-            dcs[i] = dc
+        #data[i] = current
+        #i += 1
+        # if state == "textured":
+        #     DC = (angle % 500) / max_bump_size
+        #     dcs[i] = DC
+        # elif state == "damped":
+        #     diff = (data[i] - data[i-1])/0.01
+        #     diffs[i] = diff
+        #     #diffs[i] = (diff*0.75 + diffs[i-1]*0.25)
+        #     dc = diffs[i]/300
+        #     dcs[i] = dc
 
 
         #print("Started at:", start)
@@ -203,9 +203,9 @@ finally:
     now = time.time()
     print("Started at:", start)
     print("Finished:", now)
-    np.save("damp-velocity.npy", diffs[0:i+1])
-    np.save("damp-dc.npy", dcs[0:i+1])
-    np.save("damp-position.npy", data[0:i+1])
+    #np.save("damp-velocity.npy", diffs[0:i+1])
+    #np.save("damp-dc.npy", dcs[0:i+1])
+    #np.save("current-wall.npy", data[0:i+1])
 
 
 
