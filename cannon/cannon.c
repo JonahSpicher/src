@@ -24,21 +24,38 @@
 ** POSSIBILITY OF SUCH DAMAGE.
 */
 #include "elecanisms.h"
+int ball_flag = 0;
+int celebration_counter = 0;
+int slow_timer = 0;
 
 void __attribute__((interrupt, auto_psv)) _T1Interrupt(void) {
     IFS0bits.T1IF = 0;      // lower Timer1 interrupt flag
+    if (ball_flag == 1) { //If a ball went through, blink fast
+        slow_timer = 0;
+        LED1 = !LED1;
+        LED2 = !LED2;
+        celebration_counter ++;
+        if (celebration_counter > 6) { //But dont blink fast for very long
+            ball_flag = 0;
+            celebration_counter = 0;
+        }
+    }
+    else { //If a ball didn't go through, blink slowly
+        if (slow_timer > 4) {
+            slow_timer = 0;
+            LED1 = !LED1;
+            LED2 = !LED2;
+        }
+        slow_timer ++;
+    }
 
-    LED2 = !LED2;           // toggle LED2
-    // if (D6 == 0)
-    // {
-    //     LED3 = OFF;
-    // }
+    //LED3 = !LED3;           // make sure this is running
 }
 
 int16_t main(void) {
     init_elecanisms();
 
-    T1CON = 0x0030;         // set Timer1 period to 0.5s
+    T1CON = 0x0020;         // set Timer1 period to ~0.25s
     PR1 = 0x7A11;
 
     TMR1 = 0;               // set Timer1 count to 0
@@ -46,15 +63,19 @@ int16_t main(void) {
     IEC0bits.T1IE = 1;      // enable Timer1 interrupt
     T1CONbits.TON = 1;      // turn on Timer1
 
+
+
+    ball_flag = 0;
+
     //LED2 = ON;
 
+    //Do waiting behavior
     while (1) {
-
-        if (D6 == 1)
-        {
-            LED3 = !LED3;
+        int val = read_analog(A0_AN);
+        if (ball_flag == 0){
+            if (val > 500) {
+                ball_flag = 1;
+            }
         }
-        //LED1 = (SW2 == 0) ? ON : OFF;   // turn LED1 on if SW2 is pressed
-        //LED3 = (SW3 == 0) ? ON : OFF;   // turn LED3 on if SW3 is pressed
     }
 }
